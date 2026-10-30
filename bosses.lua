@@ -12,15 +12,19 @@ local function tocarMusicaDeBatalha(audio, tipoBoss)
         return
     end
 
+    if audio.musicaMenu then
+        audio.musicaMenu:stop()
+    end
+
     if audio.musicaFundo and audio.musicaFundo:isPlaying() then
         audio.musicaFundo:pause()
     end
 
-    if audio.musicaBatalha and audio.musicaBatalha:isPlaying() then
+    if audio.musicaBatalha then
         audio.musicaBatalha:stop()
     end
 
-    if audio.musicaBoss2 and audio.musicaBoss2:isPlaying() then
+    if audio.musicaBoss2 then
         audio.musicaBoss2:stop()
     end
 
@@ -38,11 +42,15 @@ local function voltarMusicaDeFundo(audio)
         return
     end
 
-    if audio.musicaBatalha and audio.musicaBatalha:isPlaying() then
+    if audio.musicaMenu then
+        audio.musicaMenu:stop()
+    end
+
+    if audio.musicaBatalha then
         audio.musicaBatalha:stop()
     end
 
-    if audio.musicaBoss2 and audio.musicaBoss2:isPlaying() then
+    if audio.musicaBoss2 then
         audio.musicaBoss2:stop()
     end
 
@@ -112,11 +120,16 @@ function Bosses.reset(bosses, audio)
     bosses.timerSpawnBoss2 = -1
     bosses.tirosInimigos = {}
 
-    if audio.musicaBoss2 and audio.musicaBoss2:isPlaying() then
-    audio.musicaBoss2:stop()
-end
     if audio then
-        if audio.musicaBatalha and audio.musicaBatalha:isPlaying() then
+        if audio.musicaMenu then
+            audio.musicaMenu:stop()
+        end
+
+        if audio.musicaBoss2 then
+            audio.musicaBoss2:stop()
+        end
+
+        if audio.musicaBatalha then
             audio.musicaBatalha:stop()
         end
 

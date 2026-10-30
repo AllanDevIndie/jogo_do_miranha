@@ -28,6 +28,11 @@ function Assets.load()
     Assets.audio.musicaFundo:setLooping(true)
     Assets.audio.musicaFundo:setVolume(0.5)
 
+    Assets.audio.musicaMenu =
+        love.audio.newSource("songs/Spider-Man 1967.mp3", "stream")
+    Assets.audio.musicaMenu:setLooping(true)
+    Assets.audio.musicaMenu:setVolume(0.5)
+
     Assets.audio.musicaBatalha =
         love.audio.newSource("songs/battle.mp3", "stream")
     Assets.audio.musicaBatalha:setLooping(true)

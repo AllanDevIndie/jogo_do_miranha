@@ -28,6 +28,27 @@ local tiposPowerup = {}
 local musicaPausada = nil
 local cena2Ativa = false
 local transicaoCenario = nil
+local volumeSom = 0.5
+local resolucaoAtual = 1
+local origemConfiguracoes = "menu"
+local aplicarVolume
+
+local function pararMusicasDeJogo(manter)
+    for _, nome in ipairs({ "musicaFundo", "musicaBatalha", "musicaBoss2" }) do
+        local musica = Assets.audio[nome]
+        if musica and nome ~= manter then
+            musica:stop()
+        end
+    end
+end
+
+local function tocarMusicaMenu()
+    pararMusicasDeJogo()
+
+    local musicaMenu = Assets.audio.musicaMenu
+    musicaMenu:stop()
+    musicaMenu:play()
+end
 
 local function colisaoCirculo(x1, y1, raio1, x2, y2, raio2)
     local dx = x1 - x2
@@ -39,6 +60,7 @@ end
 local function reiniciarJogo()
     local larguraTela = love.graphics.getWidth()
     local alturaTela = love.graphics.getHeight()
+    Assets.audio.musicaMenu:stop()
     cena2Ativa = false
     transicaoCenario = nil
 
@@ -218,7 +240,44 @@ function love.load()
         }
     }
 
-    Assets.audio.musicaFundo:play()
+    aplicarVolume()
+    tocarMusicaMenu()
+end
+
+aplicarVolume = function()
+    Assets.audio.musicaFundo:setVolume(volumeSom)
+    Assets.audio.musicaMenu:setVolume(volumeSom)
+    Assets.audio.musicaBatalha:setVolume(volumeSom)
+    Assets.audio.musicaBoss2:setVolume(volumeSom)
+end
+
+local function abrirConfiguracoes(origem)
+    origemConfiguracoes = origem
+    estado = "configuracoes"
+end
+
+local function voltarDasConfiguracoes()
+    estado = origemConfiguracoes
+    interface.ajustandoVolume = false
+end
+
+local function alterarResolucao(indice)
+    local resolucao = interface.botoesResolucao[indice].resolucao
+    local sucesso, mensagem = love.window.setMode(
+        resolucao.largura,
+        resolucao.altura
+    )
+
+    if not sucesso then
+        error("Não foi possível alterar a resolução: " .. tostring(mensagem))
+    end
+
+    resolucaoAtual = indice
+    UI.resize(
+        interface,
+        love.graphics.getWidth(),
+        love.graphics.getHeight()
+    )
 end
 
 local function pausarJogo()
@@ -226,22 +285,42 @@ local function pausarJogo()
 
     musicaPausada = nil
 
-    if Assets.audio.musicaBatalha:isPlaying() then
+    if Assets.audio.musicaBoss2:isPlaying() then
+        musicaPausada = "boss2"
+    elseif Assets.audio.musicaBatalha:isPlaying() then
         musicaPausada = "batalha"
-        Assets.audio.musicaBatalha:pause()
     elseif Assets.audio.musicaFundo:isPlaying() then
         musicaPausada = "fundo"
-        Assets.audio.musicaFundo:pause()
+    end
+
+    local musicas = {
+        fundo = Assets.audio.musicaFundo,
+        batalha = Assets.audio.musicaBatalha,
+        boss2 = Assets.audio.musicaBoss2
+    }
+
+    for nome, musica in pairs(musicas) do
+        if nome == musicaPausada then
+            musica:pause()
+        else
+            musica:stop()
+        end
     end
 end
 
 local function voltarAoJogo()
     estado = "jogando"
 
-    if musicaPausada == "batalha" then
-        Assets.audio.musicaBatalha:play()
-    elseif musicaPausada == "fundo" then
-        Assets.audio.musicaFundo:play()
+    local nomesMusica = {
+        fundo = "musicaFundo",
+        batalha = "musicaBatalha",
+        boss2 = "musicaBoss2"
+    }
+    local musicaRetomar = nomesMusica[musicaPausada]
+    pararMusicasDeJogo(musicaRetomar)
+
+    if musicaRetomar then
+        Assets.audio[musicaRetomar]:play()
     end
 
     musicaPausada = nil
@@ -249,12 +328,7 @@ end
 
 local function voltarAoMenuPrincipal()
     estado = "menu"
-
-    if Assets.audio.musicaBatalha:isPlaying() then
-        Assets.audio.musicaBatalha:stop()
-    end
-
-    Assets.audio.musicaFundo:play()
+    tocarMusicaMenu()
     musicaPausada = nil
 end
 
@@ -338,6 +412,7 @@ function love.update(dt)
 
     if jogador.vidas <= 0 then
         estado = "gameover"
+        pararMusicasDeJogo()
     end
 end
 
@@ -355,8 +430,21 @@ function love.draw()
 
     if estado == "menu" then
         UI.drawMenu(interface, Assets, larguraTela, alturaTela)
+        
+    elseif estado == "instrucoes" then
+        UI.drawInstructions(interface, larguraTela, alturaTela)
 
-   elseif estado == "jogando" or estado == "pausado" or estado == "configuracoes" then
+    elseif estado == "configuracoes" and origemConfiguracoes == "menu" then
+        UI.drawSettingsMenu(
+            interface,
+            larguraTela,
+            alturaTela,
+            volumeSom,
+            resolucaoAtual
+        )
+
+    elseif estado == "jogando" or estado == "pausado"
+    or estado == "configuracoes" then
         Enemies.draw(inimigos, Assets)
         Bosses.draw(chefes, Assets)
         desenharItens()
@@ -387,7 +475,9 @@ function love.draw()
             UI.drawSettingsMenu(
                 interface,
                 larguraTela,
-                alturaTela
+                alturaTela,
+                volumeSom,
+                resolucaoAtual
             )
         end
 
@@ -409,6 +499,17 @@ function love.mousepressed(x, y, botao)
     if estado == "menu" then
         if UI.isStartButtonClicked(interface, x, y) then
             reiniciarJogo()
+        elseif UI.isInstructionsButtonClicked(interface, x, y) then
+            estado = "instrucoes"
+        elseif UI.isMenuSettingsButtonClicked(interface, x, y) then
+            abrirConfiguracoes("menu")
+        elseif UI.isExitButtonClicked(interface, x, y) then
+            love.event.quit()
+        end
+
+    elseif estado == "instrucoes" then
+        if UI.isInstructionsBackClicked(interface, x, y) then
+            estado = "menu"
         end
 
     elseif estado == "pausado" then
@@ -419,15 +520,41 @@ function love.mousepressed(x, y, botao)
         elseif acao == "menu" then
             voltarAoMenuPrincipal()
         elseif acao == "configuracoes" then
-            estado = "configuracoes"
+            abrirConfiguracoes("pausado")
         elseif acao == "fechar" then
             love.event.quit()
         end
 
     elseif estado == "configuracoes" then
-        if UI.settingsAction(interface, x, y) == "voltar" then
-            estado = "pausado"
+        local acao, valor = UI.settingsAction(interface, x, y)
+
+        if acao == "voltar" then
+            voltarDasConfiguracoes()
+        elseif acao == "volume" then
+            volumeSom = valor
+            aplicarVolume()
+        elseif acao == "resolucao" then
+            alterarResolucao(valor)
         end
+    end
+end
+
+function love.mousemoved(x)
+    if estado == "configuracoes" and interface.ajustandoVolume then
+        volumeSom = UI.volumeAt(interface, x)
+        aplicarVolume()
+    end
+end
+
+function love.mousereleased(_, _, botao)
+    if botao == 1 then
+        interface.ajustandoVolume = false
+    end
+end
+
+function love.resize(largura, altura)
+    if interface then
+        UI.resize(interface, largura, altura)
     end
 end
 
@@ -438,7 +565,9 @@ function love.keypressed(tecla)
         elseif estado == "pausado" then
             voltarAoJogo()
         elseif estado == "configuracoes" then
-            estado = "pausado"
+            voltarDasConfiguracoes()
+        elseif estado == "instrucoes" then
+            estado = "menu"
         elseif estado == "gameover" then
             voltarAoMenuPrincipal()
         end

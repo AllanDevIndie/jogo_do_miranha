@@ -12,13 +12,13 @@ end
 function Enemies.new()
     return {
         lista = {},
-        timerSpawn = 0.5
+        timerSpawn = 0.6
     }
 end
 
 function Enemies.reset(enemies)
     enemies.lista = {}
-    enemies.timerSpawn = 0.5
+    enemies.timerSpawn = 0.6
 end
 
 function Enemies.update(
@@ -72,9 +72,12 @@ function Enemies.update(
             vida = 2
         end
 
-        local bonusVelocidade = math.min(110, tempoPartida * 2)
-        local velocidadeMinima = 80 + bonusVelocidade
-        local velocidadeMaxima = 130 + bonusVelocidade
+        local bonusVelocidade = math.min(90, tempoPartida * 1.5)
+        -- Ajuste estes valores para mudar a velocidade dos inimigos tipo 1 e 2.
+        local velocidadeMinima = tipo == 2 and 65 or 60
+        local velocidadeMaxima = tipo == 2 and 105 or 100
+        velocidadeMinima = velocidadeMinima + bonusVelocidade
+        velocidadeMaxima = velocidadeMaxima + bonusVelocidade
 
         table.insert(enemies.lista, {
             x = x,

@@ -69,9 +69,12 @@ function Player.update(player, dt, larguraTela, alturaTela, tiroRapidoAtivo)
     -- Intervalo e velocidade dos tiros
     player.timerTiro = player.timerTiro - dt
 
-    local intervaloAtual = tiroRapidoAtivo
-        and player.intervaloTiro / 2
+    local intervaloBase = player.vidas == 1
+        and 0.3
         or player.intervaloTiro
+    local intervaloAtual = tiroRapidoAtivo
+        and intervaloBase / 2
+        or intervaloBase
 
     local velocidadeTiro = tiroRapidoAtivo and 750 or 500
 
