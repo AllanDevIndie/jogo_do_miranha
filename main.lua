@@ -35,6 +35,7 @@ local timerPortal = 60
 local itemDuelo = nil
 local timerItemDuelo = 10
 local chefeSecretoDerrotado = false
+local menuDebugAberto = false
 local volumeSom = 0.5
 local resolucaoAtual = 1
 local origemConfiguracoes = "menu"
@@ -75,6 +76,7 @@ local function reiniciarJogo()
     itemDuelo = nil
     timerItemDuelo = 10
     chefeSecretoDerrotado = false
+    menuDebugAberto = false
     SecretBoss.reset(chefeSecreto)
 
     estado = "jogando"
@@ -333,6 +335,76 @@ local function iniciarTransicaoCenario(destino)
     transicaoCenario={tempo=0,duracao=2.5,origem=cenarioAtual,destino=destino}
 end
 
+local function resetarCombateParaDebug()
+    Bosses.reset(chefes, Assets.audio)
+    SecretBoss.reset(chefeSecreto)
+    portal = nil
+    itemDuelo = nil
+    coracao = nil
+    powerup = nil
+    timerPortal = 60
+    timerItemDuelo = 10
+    chefeSecretoDerrotado = false
+    transicaoCenario = nil
+end
+
+local function executarAcaoDebug(acao)
+    local larguraTela = love.graphics.getWidth()
+    local alturaTela = love.graphics.getHeight()
+
+    if acao == "boss1" then
+        resetarCombateParaDebug()
+        cenarioAtual = "fundo"
+        Bosses.debugSpawn(chefes, 1, larguraTela, Assets.audio)
+
+    elseif acao == "boss2" then
+        resetarCombateParaDebug()
+        cenarioAtual = "cena2"
+        Bosses.debugSpawn(chefes, 2, larguraTela, Assets.audio)
+
+    elseif acao == "portal" then
+        resetarCombateParaDebug()
+        cenarioAtual = "cena2"
+        chefes.boss1JaApareceu = true
+        chefes.boss1Derrotado = true
+        chefes.boss2JaApareceu = true
+        chefes.boss2Derrotado = true
+        portal = {
+            x = love.math.random(80, larguraTela - 80),
+            y = love.math.random(80, alturaTela - 80),
+            tamanho = 56,
+            tempoRestante = 5
+        }
+
+    elseif acao == "secreto" then
+        resetarCombateParaDebug()
+        chefes.boss1JaApareceu = true
+        chefes.boss1Derrotado = true
+        chefes.boss2JaApareceu = true
+        chefes.boss2Derrotado = true
+        SecretBoss.start(
+            chefeSecreto,
+            jogador,
+            larguraTela,
+            alturaTela,
+            Assets.audio
+        )
+        cenarioAtual = "cena2"
+        iniciarTransicaoCenario("cenaEspecial")
+
+    elseif acao == "tempo" then
+        if chefes.boss1Derrotado and not chefes.boss2JaApareceu then
+            chefes.timerSpawnBoss2 = 0
+        else
+            tempoPartida = tempoPartida + 30
+        end
+
+    elseif acao == "cura" then
+        jogador.vidas = 3
+        jogador.tempoInvulneravel = 0
+    end
+end
+
 local function atualizarPortal(dt,w,h)
     if not chefes.boss2Derrotado or chefeSecretoDerrotado
     or SecretBoss.isActive(chefeSecreto) then return end
@@ -399,6 +471,7 @@ function love.update(dt)
     local h=love.graphics.getHeight()
     UI.update(interface,dt,w,estado)
     if estado~="jogando" then return end
+    if menuDebugAberto then return end
 
     if transicaoCenario then
         transicaoCenario.tempo=transicaoCenario.tempo+dt
@@ -474,6 +547,10 @@ function love.draw()
         elseif estado=="configuracoes" then
             UI.drawSettingsMenu(interface,w,h,volumeSom,resolucaoAtual)
         end
+
+        if menuDebugAberto then
+            UI.drawDebugMenu(interface,w,h)
+        end
     elseif estado=="gameover" then
         UI.drawGameOver(pontos,tempoPartida,w,h)
     end
@@ -481,6 +558,15 @@ end
 
 function love.mousepressed(x, y, botao)
     if botao ~= 1 then
+        return
+    end
+
+    if menuDebugAberto then
+        local acao = UI.debugAction(interface, x, y)
+        if acao then
+            executarAcaoDebug(acao)
+            menuDebugAberto = false
+        end
         return
     end
 
@@ -547,6 +633,18 @@ function love.resize(largura, altura)
 end
 
 function love.keypressed(tecla)
+    if menuDebugAberto then
+        if tecla == "h" or tecla == "escape" then
+            menuDebugAberto = false
+        end
+        return
+    end
+
+    if tecla == "h" and estado == "jogando" then
+        menuDebugAberto = true
+        return
+    end
+
     if tecla == "escape" then
         if estado == "jogando" then
             pausarJogo()
@@ -559,7 +657,6 @@ function love.keypressed(tecla)
         elseif estado == "gameover" then
             voltarAoMenuPrincipal()
         end
-
     elseif tecla == "r" and estado == "gameover" then
         reiniciarJogo()
     end

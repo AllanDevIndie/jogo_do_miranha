@@ -53,6 +53,22 @@ local function desenharBotaoMenu(botao, texto, selecionado)
     )
 end
 
+local function posicionarBotoesDebug(botoes, larguraTela, alturaTela)
+    local largura = 300
+    local altura = 38
+    local espacamento = 5
+    local alturaTotal = #botoes * altura + (#botoes - 1) * espacamento
+    local x = (larguraTela - largura) / 2
+    local y = (alturaTela - alturaTotal) / 2 + 10
+
+    for indice, botao in ipairs(botoes) do
+        botao.x = x
+        botao.y = y + (indice - 1) * (altura + espacamento)
+        botao.largura = largura
+        botao.altura = altura
+    end
+end
+
 function UI.new(larguraTela, alturaTela)
     local alturaBotaoMenu = 50
     local larguraBotaoMenu = 200
@@ -136,6 +152,14 @@ function UI.new(larguraTela, alturaTela)
             altura = 14
         },
         botoesResolucao = botoesResolucao,
+        botoesDebug = {
+            { acao = "boss1", texto = "Invocar Boss 1" },
+            { acao = "boss2", texto = "Invocar Boss 2" },
+            { acao = "portal", texto = "Ativar portal secreto" },
+            { acao = "secreto", texto = "Invocar chefe secreto" },
+            { acao = "tempo", texto = "Avançar 30 segundos" },
+            { acao = "cura", texto = "Recuperar vidas" }
+        },
         botoesPausa = {
             voltar = {
                 texto = "Voltar ao jogo",
@@ -180,6 +204,7 @@ function UI.new(larguraTela, alturaTela)
         }
     }
 
+    posicionarBotoesDebug(ui.botoesDebug, larguraTela, alturaTela)
     return ui
 end
 
@@ -226,6 +251,8 @@ function UI.resize(ui, larguraTela, alturaTela)
             (larguraBotaoResolucao + espacamentoResolucao)
         botao.y = alturaTela * 0.62
     end
+
+    posicionarBotoesDebug(ui.botoesDebug, larguraTela, alturaTela)
 
     local tituloLargura = ui.fonteTitulo:getWidth(ui.titulo)
     ui.tituloX = math.min(
@@ -679,6 +706,75 @@ local function desenharBotao(uiBotao)
         uiBotao.largura,
         "center"
     )
+end
+
+function UI.drawDebugMenu(ui, larguraTela, alturaTela)
+    love.graphics.setColor(0, 0, 0, 0.78)
+    love.graphics.rectangle("fill", 0, 0, larguraTela, alturaTela)
+
+    local painelLargura = 360
+    local painelAltura = 420
+    local painelX = (larguraTela - painelLargura) / 2
+    local painelY = (alturaTela - painelAltura) / 2
+
+    love.graphics.setColor(0.06, 0.08, 0.12, 0.97)
+    love.graphics.rectangle(
+        "fill",
+        painelX,
+        painelY,
+        painelLargura,
+        painelAltura,
+        12,
+        12
+    )
+
+    love.graphics.setColor(1, 0.8, 0.2, 1)
+    love.graphics.printf(
+        "MENU SECRETO / DEBUG",
+        painelX,
+        painelY + 22,
+        painelLargura,
+        "center"
+    )
+
+    love.graphics.setColor(1, 1, 1, 0.8)
+    love.graphics.printf(
+        "Os atalhos só afetam esta partida.",
+        painelX + 20,
+        painelY + 52,
+        painelLargura - 40,
+        "center"
+    )
+
+    for _, botao in ipairs(ui.botoesDebug) do
+        desenharBotao(botao)
+    end
+
+    love.graphics.setColor(1, 1, 1, 0.85)
+    love.graphics.printf(
+        "H ou ESC fecha este menu",
+        painelX,
+        painelY + painelAltura - 26,
+        painelLargura,
+        "center"
+    )
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function UI.debugAction(ui, mouseX, mouseY)
+    for _, botao in ipairs(ui.botoesDebug) do
+        if pontoDentroDoRetangulo(
+            mouseX,
+            mouseY,
+            botao.x,
+            botao.y,
+            botao.largura,
+            botao.altura
+        ) then
+            return botao.acao
+        end
+    end
+    return nil
 end
 
 function UI.drawPauseMenu(ui, larguraTela, alturaTela)

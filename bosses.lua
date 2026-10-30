@@ -144,6 +144,30 @@ function Bosses.isActive(bosses)
     return bosses.boss ~= nil
 end
 
+function Bosses.debugSpawn(bosses, tipo, larguraTela, audio)
+    bosses.boss = nil
+    bosses.bossEntrando = false
+    bosses.tirosInimigos = {}
+    bosses.timerSpawnBoss2 = -1
+
+    if tipo == 1 then
+        bosses.boss1JaApareceu = true
+        bosses.boss1Derrotado = false
+        bosses.boss2JaApareceu = false
+        bosses.boss2Derrotado = false
+    elseif tipo == 2 then
+        bosses.boss1JaApareceu = true
+        bosses.boss1Derrotado = true
+        bosses.boss2JaApareceu = true
+        bosses.boss2Derrotado = false
+    else
+        return
+    end
+
+    criarBoss(bosses, tipo, larguraTela)
+    tocarMusicaDeBatalha(audio, tipo)
+end
+
 function Bosses.update(
     bosses,
     dt,
