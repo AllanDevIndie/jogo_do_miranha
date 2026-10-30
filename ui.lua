@@ -255,40 +255,27 @@ function UI.update(ui, dt, larguraTela, estado)
     end
 end
 
-function UI.drawBackground(
-    assets,
-    larguraTela,
-    alturaTela,
-    cena2Ativa,
-    transicao
-)
-    local function desenharImagem(imagem, alpha)
-        local escalaX = larguraTela / imagem:getWidth()
-        local escalaY = alturaTela / imagem:getHeight()
-
-        love.graphics.setColor(1, 1, 1, alpha)
-        love.graphics.draw(imagem, 0, 0, 0, escalaX, escalaY)
+function UI.drawBackground(assets, larguraTela, alturaTela, cenarioAtual, transicao)
+    local imagens = {
+        fundo = assets.images.fundo,
+        cena2 = assets.images.cena2,
+        cenaEspecial = assets.images.cenaEspecial
+    }
+    local function desenharCena(nome, alpha)
+        local imagem = imagens[nome] or imagens.fundo
+        love.graphics.setColor(1,1,1,alpha)
+        love.graphics.draw(imagem,0,0,0,
+            larguraTela/imagem:getWidth(),alturaTela/imagem:getHeight())
     end
-
     if transicao then
-        local progresso = math.min(
-            1,
-            transicao.tempo / transicao.duracao
-        )
-
-        -- Curva suave de entrada e saída do fade.
-        local alpha = progresso * progresso * (3 - 2 * progresso)
-
-        desenharImagem(assets.images.fundo, 1)
-        desenharImagem(assets.images.cena2, alpha)
-
-    elseif cena2Ativa then
-        desenharImagem(assets.images.cena2, 1)
+        local progresso=math.min(1,transicao.tempo/transicao.duracao)
+        local alpha=progresso*progresso*(3-2*progresso)
+        desenharCena(transicao.origem,1)
+        desenharCena(transicao.destino,alpha)
     else
-        desenharImagem(assets.images.fundo, 1)
+        desenharCena(cenarioAtual,1)
     end
-
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(1,1,1,1)
 end
 
 function UI.drawMenu(ui, assets, larguraTela, alturaTela)
@@ -356,6 +343,9 @@ Os power-ups de tiro rápido e escudo ajudam durante a partida.
 Pressione ESC para pausar ou voltar ao jogo.
 Na tela de pausa, você pode voltar ao jogo ou ao menu principal.
 Pressione R para jogar novamente após o fim da partida.
+
+Depois de derrotar o segundo chefe, fique atento: um portal pode surgir
+por alguns segundos. Entre nele para enfrentar o chefe secreto.
 ]]
 
     love.graphics.printf(
@@ -470,6 +460,7 @@ end
 function UI.drawHUD(dados, assets, larguraTela, alturaTela)
     local player = dados.player
     local bosses = dados.bosses
+    local boss = bosses.boss
 
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print("Pontos: " .. dados.pontos, 20, 20)
@@ -524,8 +515,7 @@ function UI.drawHUD(dados, assets, larguraTela, alturaTela)
     )
 
     -- Barra de vida do chefe
-    if bosses.boss then
-        local boss = bosses.boss
+    if boss then
         local barraLargura = 90
         local barraAltura = 8
         local barraX = boss.x - barraLargura / 2
@@ -567,7 +557,7 @@ function UI.drawHUD(dados, assets, larguraTela, alturaTela)
     end
 
     -- Aviso de chegada ou batalha do chefe
-    if bosses.bossEntrando then
+    if bosses.bossEntrando and boss then
         love.graphics.setColor(0, 0, 0, 0.6)
         love.graphics.rectangle(
             "fill",
@@ -579,7 +569,9 @@ function UI.drawHUD(dados, assets, larguraTela, alturaTela)
 
         love.graphics.setColor(1, 0.2, 0.2, 1)
         love.graphics.printf(
-            "! ATENÇÃO: O CHEFÃO ESTÁ CHEGANDO !",
+            boss.tipo == 3
+            and "! O CHEFE SECRETO ESTÁ CHEGANDO !"
+            or "! ATENÇÃO: O CHEFÃO ESTÁ CHEGANDO !",
             0,
             alturaTela / 2 - 30,
             larguraTela,
@@ -594,10 +586,10 @@ function UI.drawHUD(dados, assets, larguraTela, alturaTela)
             larguraTela,
             "center"
         )
-    elseif bosses.boss then
+    elseif boss then
         love.graphics.setColor(1, 0.3, 0.3, 1)
         love.graphics.printf(
-            "! " .. bosses.boss.nome .. " EM BATALHA !",
+            "! " .. boss.nome .. " EM BATALHA !",
             0,
             42,
             larguraTela,
@@ -607,7 +599,7 @@ function UI.drawHUD(dados, assets, larguraTela, alturaTela)
 
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.printf(
-        "WASD/Setas: mover | Segure Clique Esquerdo: atirar | ESC: menu",
+        "WASD/Setas: mover | Segure Clique Esquerdo: atirar | ESC: pausar",
         0,
         alturaTela - 30,
         larguraTela,

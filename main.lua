@@ -6,6 +6,7 @@ local Assets = require("assets")
 local Player = require("player")
 local Enemies = require("enemies")
 local Bosses = require("bosses")
+local SecretBoss = require("secret_boss")
 local UI = require("ui")
 
 local estado = "menu"
@@ -15,6 +16,7 @@ local tempoPartida = 0
 local jogador
 local inimigos
 local chefes
+local chefeSecreto
 local interface
 
 local coracao = nil
@@ -26,8 +28,13 @@ local timerTiroRapidoAtivo = 0
 local timerEscudoAtivo = 0
 local tiposPowerup = {}
 local musicaPausada = nil
-local cena2Ativa = false
+local cenarioAtual = "fundo"
 local transicaoCenario = nil
+local portal = nil
+local timerPortal = 60
+local itemDuelo = nil
+local timerItemDuelo = 10
+local chefeSecretoDerrotado = false
 local volumeSom = 0.5
 local resolucaoAtual = 1
 local origemConfiguracoes = "menu"
@@ -61,8 +68,14 @@ local function reiniciarJogo()
     local larguraTela = love.graphics.getWidth()
     local alturaTela = love.graphics.getHeight()
     Assets.audio.musicaMenu:stop()
-    cena2Ativa = false
+    cenarioAtual = "fundo"
     transicaoCenario = nil
+    portal = nil
+    timerPortal = 60
+    itemDuelo = nil
+    timerItemDuelo = 10
+    chefeSecretoDerrotado = false
+    SecretBoss.reset(chefeSecreto)
 
     estado = "jogando"
     pontos = 0
@@ -82,6 +95,8 @@ local function reiniciarJogo()
 end
 
 local function atualizarItens(dt, larguraTela, alturaTela)
+    if SecretBoss.isActive(chefeSecreto) then return end
+
     timerSpawnCoracao = timerSpawnCoracao - dt
 
     if timerSpawnCoracao <= 0 then
@@ -156,56 +171,37 @@ local function atualizarItens(dt, larguraTela, alturaTela)
 end
 
 local function desenharItens()
+    local function drawItem(imagem,x,y,tamanho,alpha)
+        local escala=tamanho/imagem:getWidth()
+        love.graphics.setColor(1,1,1,alpha or 1)
+        love.graphics.draw(imagem,x,y,0,escala,escala,
+            imagem:getWidth()/2,imagem:getHeight()/2)
+    end
     if coracao then
-        local imagem = Assets.images.coracao
-        local escalaBase = coracao.tamanho / imagem:getWidth()
-        local pulso = 1 + math.sin(love.timer.getTime() * 8) * 0.12
-        local escala = escalaBase * pulso
-
-        if coracao.tempoRestante <= 1.5
-        and math.floor(coracao.tempoRestante * 8) % 2 == 0 then
-            love.graphics.setColor(1, 1, 1, 0.25)
-        else
-            love.graphics.setColor(1, 1, 1, 1)
-        end
-
-        love.graphics.draw(
-            imagem,
-            coracao.x,
-            coracao.y,
-            0,
-            escala,
-            escala,
-            imagem:getWidth() / 2,
-            imagem:getHeight() / 2
-        )
+        local pulso=1+math.sin(love.timer.getTime()*8)*0.12
+        local alpha=coracao.tempoRestante<=1.5
+            and math.floor(coracao.tempoRestante*8)%2==0 and 0.25 or 1
+        drawItem(Assets.images.coracao,coracao.x,coracao.y,
+            coracao.tamanho*pulso,alpha)
     end
-
     if powerup then
-        local imagem = powerup.tipo.imagem
-        local pulso = 1 + math.sin(love.timer.getTime() * 8) * 0.12
-        local escala = powerup.tipo.escala * pulso
-
-        if powerup.tempoRestante <= 1.5
-        and math.floor(powerup.tempoRestante * 8) % 2 == 0 then
-            love.graphics.setColor(1, 1, 1, 0.25)
-        else
-            love.graphics.setColor(1, 1, 1, 1)
-        end
-
-        love.graphics.draw(
-            imagem,
-            powerup.x,
-            powerup.y,
-            0,
-            escala,
-            escala,
-            imagem:getWidth() / 2,
-            imagem:getHeight() / 2
-        )
+        local pulso=1+math.sin(love.timer.getTime()*8)*0.12
+        local alpha=powerup.tempoRestante<=1.5
+            and math.floor(powerup.tempoRestante*8)%2==0 and 0.25 or 1
+        drawItem(powerup.tipo.imagem,powerup.x,powerup.y,
+            powerup.tamanho*pulso,alpha)
     end
-
-    love.graphics.setColor(1, 1, 1, 1)
+    if portal then
+        local pulso=1+math.sin(love.timer.getTime()*6)*0.1
+        drawItem(Assets.images.portal,portal.x,portal.y,portal.tamanho*pulso)
+    end
+    if itemDuelo then
+        local imagens={vida=Assets.images.coracao,
+            tiro_rapido=Assets.images.powerupTiroRapido,
+            escudo=Assets.images.powerupEscudo}
+        drawItem(imagens[itemDuelo.tipo],itemDuelo.x,itemDuelo.y,itemDuelo.tamanho)
+    end
+    love.graphics.setColor(1,1,1,1)
 end
 
 function love.load()
@@ -217,6 +213,7 @@ function love.load()
     jogador = Player.new(Assets, larguraTela, alturaTela)
     inimigos = Enemies.new()
     chefes = Bosses.new()
+    chefeSecreto = SecretBoss.new()
     interface = UI.new(larguraTela, alturaTela)
 
     tiposPowerup = {
@@ -332,162 +329,153 @@ local function voltarAoMenuPrincipal()
     musicaPausada = nil
 end
 
-local function iniciarTransicaoCenario()
-    transicaoCenario = {
-        tempo = 0,
-        duracao = 2.5
-    }
+local function iniciarTransicaoCenario(destino)
+    transicaoCenario={tempo=0,duracao=2.5,origem=cenarioAtual,destino=destino}
+end
+
+local function atualizarPortal(dt,w,h)
+    if not chefes.boss2Derrotado or chefeSecretoDerrotado
+    or SecretBoss.isActive(chefeSecreto) then return end
+    if portal then
+        portal.tempoRestante=portal.tempoRestante-dt
+        if portal.tempoRestante<=0 then
+            portal=nil
+        elseif colisaoCirculo(jogador.x,jogador.y,jogador.tamanho/2.2,
+            portal.x,portal.y,portal.tamanho/2) then
+            portal=nil
+            coracao=nil
+            powerup=nil
+            itemDuelo=nil
+            timerItemDuelo=10
+            SecretBoss.start(chefeSecreto,jogador,w,h,Assets.audio)
+            iniciarTransicaoCenario("cenaEspecial")
+        end
+        return
+    end
+    timerPortal=timerPortal-dt
+    if timerPortal<=0 then
+        portal={x=love.math.random(80,w-80),y=love.math.random(80,h-80),
+            tamanho=56,tempoRestante=5}
+        timerPortal=60
+    end
+end
+
+local function atualizarItemDuelo(dt,w,h)
+    if not SecretBoss.isActive(chefeSecreto) then itemDuelo=nil;return end
+    timerItemDuelo=timerItemDuelo-dt
+    if not itemDuelo and timerItemDuelo<=0 then
+        local tipos={"vida","tiro_rapido","escudo"}
+        itemDuelo={tipo=tipos[love.math.random(1,#tipos)],
+            x=love.math.random(70,w-70),y=love.math.random(70,h-70),
+            tamanho=36,tempoRestante=8}
+        timerItemDuelo=10
+    end
+    if not itemDuelo then return end
+    itemDuelo.tempoRestante=itemDuelo.tempoRestante-dt
+    if itemDuelo.tempoRestante<=0 then itemDuelo=nil;return end
+
+    if colisaoCirculo(jogador.x,jogador.y,jogador.tamanho/2.2,
+        itemDuelo.x,itemDuelo.y,itemDuelo.tamanho/2) then
+        if itemDuelo.tipo=="vida" then
+            jogador.vidas=math.min(3,jogador.vidas+1)
+        elseif itemDuelo.tipo=="tiro_rapido" then
+            timerTiroRapidoAtivo=10
+        else
+            timerEscudoAtivo=10
+        end
+        itemDuelo=nil
+        return
+    end
+    local boss=chefeSecreto.boss
+    if boss and colisaoCirculo(boss.x,boss.y,boss.tamanho/2.2,
+        itemDuelo.x,itemDuelo.y,itemDuelo.tamanho/2) then
+        SecretBoss.collectItem(chefeSecreto,itemDuelo.tipo)
+        itemDuelo=nil
+    end
 end
 
 function love.update(dt)
-    local larguraTela = love.graphics.getWidth()
-    local alturaTela = love.graphics.getHeight()
-
-    UI.update(interface, dt, larguraTela, estado)
-
-    if estado ~= "jogando" then
-        return
-    end
+    local w=love.graphics.getWidth()
+    local h=love.graphics.getHeight()
+    UI.update(interface,dt,w,estado)
+    if estado~="jogando" then return end
 
     if transicaoCenario then
-        transicaoCenario.tempo = transicaoCenario.tempo + dt
-
-        if transicaoCenario.tempo >= transicaoCenario.duracao then
-            transicaoCenario = nil
-            cena2Ativa = true
+        transicaoCenario.tempo=transicaoCenario.tempo+dt
+        if transicaoCenario.tempo>=transicaoCenario.duracao then
+            cenarioAtual=transicaoCenario.destino
+            transicaoCenario=nil
         end
     end
+    tempoPartida=tempoPartida+dt
+    timerTiroRapidoAtivo=math.max(0,timerTiroRapidoAtivo-dt)
+    timerEscudoAtivo=math.max(0,timerEscudoAtivo-dt)
+    Player.update(jogador,dt,w,h,timerTiroRapidoAtivo>0)
+    Bosses.update(chefes,dt,jogador,tempoPartida,w,h,
+        Assets.audio,timerEscudoAtivo>0)
+    atualizarPortal(dt,w,h)
 
-    tempoPartida = tempoPartida + dt
+    local dueloSecretoAtivo=SecretBoss.isActive(chefeSecreto)
+    pontos=pontos+Enemies.update(inimigos,dt,jogador,tempoPartida,w,h,
+        Bosses.isActive(chefes) or dueloSecretoAtivo,
+        chefes.boss1Derrotado,timerEscudoAtivo>0)
+    atualizarItens(dt,w,h)
 
-    timerTiroRapidoAtivo = math.max(0, timerTiroRapidoAtivo - dt)
-    timerEscudoAtivo = math.max(0, timerEscudoAtivo - dt)
-
-    Player.update(
-        jogador,
-        dt,
-        larguraTela,
-        alturaTela,
-        timerTiroRapidoAtivo > 0
-    )
-
-    Bosses.update(
-        chefes,
-        dt,
-        jogador,
-        tempoPartida,
-        larguraTela,
-        alturaTela,
-        Assets.audio,
-        timerEscudoAtivo > 0
-    )
-
-    pontos = pontos + Enemies.update(
-        inimigos,
-        dt,
-        jogador,
-        tempoPartida,
-        larguraTela,
-        alturaTela,
-        Bosses.isActive(chefes),
-        chefes.boss1Derrotado,
-        timerEscudoAtivo > 0
-    )
-
-    local primeiroBossJaDerrotado = chefes.boss1Derrotado
-
-    pontos = pontos + Bosses.handlePlayerBullets(
-        chefes,
-        jogador,
-        Assets.audio
-    )
-
-    if not primeiroBossJaDerrotado and chefes.boss1Derrotado then
-        iniciarTransicaoCenario()
+    if dueloSecretoAtivo then
+        SecretBoss.update(chefeSecreto,dt,jogador,w,h,
+            timerEscudoAtivo>0,itemDuelo)
+        atualizarItemDuelo(dt,w,h)
+        if SecretBoss.handlePlayerBullets(chefeSecreto,jogador,Assets.audio) then
+            itemDuelo=nil
+            chefeSecretoDerrotado=true
+            iniciarTransicaoCenario("cena2")
+        end
+    else
+        local boss1Antes=chefes.boss1Derrotado
+        pontos=pontos+Bosses.handlePlayerBullets(chefes,jogador,Assets.audio)
+        if not boss1Antes and chefes.boss1Derrotado then
+            iniciarTransicaoCenario("cena2")
+        end
     end
-
-    pontos = pontos + Enemies.handlePlayerBullets(inimigos, jogador)
-
-    atualizarItens(dt, larguraTela, alturaTela)
-
-    if jogador.vidas <= 0 then
-        estado = "gameover"
+    if not dueloSecretoAtivo then
+        pontos=pontos+Enemies.handlePlayerBullets(inimigos,jogador)
+    end
+    if jogador.vidas<=0 then
+        estado="gameover"
         pararMusicasDeJogo()
     end
 end
 
 function love.draw()
-    local larguraTela = love.graphics.getWidth()
-    local alturaTela = love.graphics.getHeight()
-
-    UI.drawBackground(
-    Assets,
-    larguraTela,
-    alturaTela,
-    cena2Ativa,
-    transicaoCenario
-)
-
-    if estado == "menu" then
-        UI.drawMenu(interface, Assets, larguraTela, alturaTela)
-        
-    elseif estado == "instrucoes" then
-        UI.drawInstructions(interface, larguraTela, alturaTela)
-
-    elseif estado == "configuracoes" and origemConfiguracoes == "menu" then
-        UI.drawSettingsMenu(
-            interface,
-            larguraTela,
-            alturaTela,
-            volumeSom,
-            resolucaoAtual
-        )
-
-    elseif estado == "jogando" or estado == "pausado"
-    or estado == "configuracoes" then
-        Enemies.draw(inimigos, Assets)
-        Bosses.draw(chefes, Assets)
+    local w=love.graphics.getWidth()
+    local h=love.graphics.getHeight()
+    UI.drawBackground(Assets,w,h,cenarioAtual,transicaoCenario)
+    if estado=="menu" then
+        UI.drawMenu(interface,Assets,w,h)
+    elseif estado=="instrucoes" then
+        UI.drawInstructions(interface,w,h)
+    elseif estado=="configuracoes" and origemConfiguracoes=="menu" then
+        UI.drawSettingsMenu(interface,w,h,volumeSom,resolucaoAtual)
+    elseif estado=="jogando" or estado=="pausado" or estado=="configuracoes" then
+        Enemies.draw(inimigos,Assets)
+        Bosses.draw(chefes,Assets)
+        SecretBoss.draw(chefeSecreto,Assets)
         desenharItens()
-
-        Player.draw(
-            jogador,
-            Assets,
-            timerTiroRapidoAtivo,
-            timerEscudoAtivo
-        )
-
+        Player.draw(jogador,Assets,timerTiroRapidoAtivo,timerEscudoAtivo)
+        local chefeParaHUD=SecretBoss.isActive(chefeSecreto)
+            and chefeSecreto or chefes
         UI.drawHUD({
-            player = jogador,
-            bosses = chefes,
-            pontos = pontos,
-            tempoPartida = tempoPartida,
-            timerTiroRapido = timerTiroRapidoAtivo,
-            timerEscudo = timerEscudoAtivo
-        }, Assets, larguraTela, alturaTela)
-
-            if estado == "pausado" then
-            UI.drawPauseMenu(
-                interface,
-                larguraTela,
-                alturaTela
-            )
-        elseif estado == "configuracoes" then
-            UI.drawSettingsMenu(
-                interface,
-                larguraTela,
-                alturaTela,
-                volumeSom,
-                resolucaoAtual
-            )
+            player=jogador,bosses=chefeParaHUD,pontos=pontos,
+            tempoPartida=tempoPartida,timerTiroRapido=timerTiroRapidoAtivo,
+            timerEscudo=timerEscudoAtivo
+        },Assets,w,h)
+        if estado=="pausado" then
+            UI.drawPauseMenu(interface,w,h)
+        elseif estado=="configuracoes" then
+            UI.drawSettingsMenu(interface,w,h,volumeSom,resolucaoAtual)
         end
-
-    elseif estado == "gameover" then
-        UI.drawGameOver(
-            pontos,
-            tempoPartida,
-            larguraTela,
-            alturaTela
-        )
+    elseif estado=="gameover" then
+        UI.drawGameOver(pontos,tempoPartida,w,h)
     end
 end
 

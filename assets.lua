@@ -14,6 +14,9 @@ function Assets.load()
         tiroInimigo = "image/enemyPower.png",
         fundo = "image/cenary.jpg",
         cena2 = "image/cena2.jpg",
+        cenaEspecial = "image/cena_especial.jpg",
+        portal = "image/portal.png",
+        bossSecreto = "image/superhero_shield.png",
         coracao = "image/heart.png",
         powerupTiroRapido = "image/powerup.png",
         powerupEscudo = "image/powerup_shield.png"
