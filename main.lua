@@ -33,7 +33,7 @@ local transicaoCenario = nil
 local portal = nil
 local timerPortal = 60
 local itemDuelo = nil
-local timerItemDuelo = 10
+local timerItemDuelo = 5
 local chefeSecretoDerrotado = false
 local menuDebugAberto = false
 local volumeSom = 0.5
@@ -74,7 +74,7 @@ local function reiniciarJogo()
     portal = nil
     timerPortal = 60
     itemDuelo = nil
-    timerItemDuelo = 10
+    timerItemDuelo = 5
     chefeSecretoDerrotado = false
     menuDebugAberto = false
     SecretBoss.reset(chefeSecreto)
@@ -343,7 +343,7 @@ local function resetarCombateParaDebug()
     coracao = nil
     powerup = nil
     timerPortal = 60
-    timerItemDuelo = 10
+    timerItemDuelo = 5
     chefeSecretoDerrotado = false
     transicaoCenario = nil
 end
@@ -378,6 +378,8 @@ local function executarAcaoDebug(acao)
 
     elseif acao == "secreto" then
         resetarCombateParaDebug()
+        Enemies.reset(inimigos)
+        timerItemDuelo = 5
         chefes.boss1JaApareceu = true
         chefes.boss1Derrotado = true
         chefes.boss2JaApareceu = true
@@ -418,7 +420,8 @@ local function atualizarPortal(dt,w,h)
             coracao=nil
             powerup=nil
             itemDuelo=nil
-            timerItemDuelo=10
+            timerItemDuelo=5
+            Enemies.reset(inimigos)
             SecretBoss.start(chefeSecreto,jogador,w,h,Assets.audio)
             iniciarTransicaoCenario("cenaEspecial")
         end
@@ -433,18 +436,29 @@ local function atualizarPortal(dt,w,h)
 end
 
 local function atualizarItemDuelo(dt,w,h)
-    if not SecretBoss.isActive(chefeSecreto) then itemDuelo=nil;return end
+    if not SecretBoss.isActive(chefeSecreto) then
+        itemDuelo=nil
+        return
+    end
+
     timerItemDuelo=timerItemDuelo-dt
+
+    if itemDuelo then
+        itemDuelo.tempoRestante=itemDuelo.tempoRestante-dt
+        if itemDuelo.tempoRestante<=0 then
+            itemDuelo=nil
+        end
+    end
+
     if not itemDuelo and timerItemDuelo<=0 then
         local tipos={"vida","tiro_rapido","escudo"}
         itemDuelo={tipo=tipos[love.math.random(1,#tipos)],
             x=love.math.random(70,w-70),y=love.math.random(70,h-70),
-            tamanho=36,tempoRestante=8}
-        timerItemDuelo=10
+            tamanho=36,tempoRestante=5}
+        timerItemDuelo=5
     end
+
     if not itemDuelo then return end
-    itemDuelo.tempoRestante=itemDuelo.tempoRestante-dt
-    if itemDuelo.tempoRestante<=0 then itemDuelo=nil;return end
 
     if colisaoCirculo(jogador.x,jogador.y,jogador.tamanho/2.2,
         itemDuelo.x,itemDuelo.y,itemDuelo.tamanho/2) then

@@ -23,13 +23,20 @@ local function voltarMusicaFundo(audio)
 end
 
 function SecretBoss.new()
-    return {boss=nil,bossEntrando=false,timerIntro=0,tirosInimigos={}}
+    return {
+        boss=nil,
+        bossEntrando=false,
+        timerIntro=0,
+        orbitAngle=0,
+        tirosInimigos={}
+    }
 end
 
 function SecretBoss.reset(state)
     state.boss=nil
     state.bossEntrando=false
     state.timerIntro=0
+    state.orbitAngle=0
     state.tirosInimigos={}
 end
 
@@ -37,11 +44,12 @@ function SecretBoss.start(state,player,w,h,audio)
     state.boss={
         tipo=3,nome="CHEFE SECRETO",x=w/2,y=-100,
         alvoY=math.max(100,h*0.22),velocidade=player.velocidade,
-        tamanho=88,vida=3,vidaMaxima=3,timerTiro=0.8,
+        tamanho=72,vida=3,vidaMaxima=3,timerTiro=0.8,
         intervaloTiro=0.4,timerTiroRapido=0,timerEscudo=0
     }
     state.bossEntrando=true
     state.timerIntro=3
+    state.orbitAngle=0
     state.tirosInimigos={}
     tocarMusicaDuelo(audio)
 end
@@ -73,24 +81,32 @@ function SecretBoss.update(state,dt,player,w,h,escudoPlayerAtivo,item)
         boss.y=boss.y+(boss.alvoY-boss.y)*math.min(1,2.5*dt)
         if state.timerIntro<=0 then state.bossEntrando=false end
     else
-        local dx=boss.x-player.x
-        local dy=boss.y-player.y
-        local distancia=math.sqrt(dx*dx+dy*dy)
-        if distancia<0.001 then dx,dy,distancia=1,0,1 end
-        local buscarItem=false
+        local alvoX
+        local alvoY
+
         if item then
-            local ix=item.x-boss.x
-            local iy=item.y-boss.y
-            buscarItem=ix*ix+iy*iy<420*420
-            if buscarItem then dx,dy=ix,iy;distancia=math.sqrt(dx*dx+dy*dy) end
+            alvoX=item.x
+            alvoY=item.y
+        else
+            state.orbitAngle=(state.orbitAngle+dt*1.1)%(math.pi*2)
+            alvoX=player.x+math.cos(state.orbitAngle)*170
+            alvoY=player.y+math.sin(state.orbitAngle)*130
         end
-        if distancia>0.001 then dx,dy=dx/distancia,dy/distancia end
-        -- Sem item próximo, dx/dy apontam para longe do jogador.
-        -- Com um item próximo, o chefe tenta alcançá-lo.
-        boss.velocidade=player.velocidade
-        boss.x=boss.x+dx*boss.velocidade*dt
-        boss.y=boss.y+dy*boss.velocidade*dt
+
         local margem=boss.tamanho/2
+        alvoX=math.max(margem,math.min(w-margem,alvoX))
+        alvoY=math.max(margem,math.min(h-margem,alvoY))
+        local dx=alvoX-boss.x
+        local dy=alvoY-boss.y
+        local distancia=math.sqrt(dx*dx+dy*dy)
+
+        if distancia>0 then
+            local velocidade=item and 230 or 190
+            local distanciaMovida=math.min(distancia,velocidade*dt)
+            boss.x=boss.x+dx/distancia*distanciaMovida
+            boss.y=boss.y+dy/distancia*distanciaMovida
+        end
+
         boss.x=math.max(margem,math.min(w-margem,boss.x))
         boss.y=math.max(margem,math.min(h-margem,boss.y))
 
