@@ -12,6 +12,8 @@ local UI = require("ui")
 local estado = "menu"
 local pontos = 0
 local tempoPartida = 0
+local resultadoFinal = "vitoria"
+local tempoCreditos = 0
 
 local jogador
 local inimigos
@@ -20,12 +22,17 @@ local chefeSecreto
 local interface
 
 local coracao = nil
+-- Intervalo de surgimento dos corações; ajuste tempoRestante abaixo para sua duração.
 local timerSpawnCoracao = 30
 
-local powerup = nil
+local powerups = {}
+-- Power-ups básicos: intervalo de surgimento; cada item fica 5 segundos na tela.
 local timerSpawnPowerup = 35
 local timerTiroRapidoAtivo = 0
 local timerEscudoAtivo = 0
+local powerupsNovosLiberados = false
+local timerPowerupTeleguiado = nil
+local timerPowerupTiroPotente = nil
 local tiposPowerup = {}
 local musicaPausada = nil
 local cenarioAtual = "fundo"
@@ -42,7 +49,13 @@ local origemConfiguracoes = "menu"
 local aplicarVolume
 
 local function pararMusicasDeJogo(manter)
-    for _, nome in ipairs({ "musicaFundo", "musicaBatalha", "musicaBoss2" }) do
+    for _, nome in ipairs({
+        "musicaFundo",
+        "musicaBatalha",
+        "musicaBoss2",
+        "musicaCreditos",
+        "musicaGameOver"
+    }) do
         local musica = Assets.audio[nome]
         if musica and nome ~= manter then
             musica:stop()
@@ -58,6 +71,22 @@ local function tocarMusicaMenu()
     musicaMenu:play()
 end
 
+local function iniciarCreditos(resultado)
+    pararMusicasDeJogo()
+    resultadoFinal = resultado
+    tempoCreditos = 0
+    estado = "creditos"
+    Assets.audio.musicaCreditos:stop()
+    Assets.audio.musicaCreditos:play()
+end
+
+local function iniciarGameOver()
+    pararMusicasDeJogo()
+    estado = "gameover"
+    Assets.audio.musicaGameOver:stop()
+    Assets.audio.musicaGameOver:play()
+end
+
 local function colisaoCirculo(x1, y1, raio1, x2, y2, raio2)
     local dx = x1 - x2
     local dy = y1 - y2
@@ -69,6 +98,8 @@ local function reiniciarJogo()
     local larguraTela = love.graphics.getWidth()
     local alturaTela = love.graphics.getHeight()
     Assets.audio.musicaMenu:stop()
+    Assets.audio.musicaCreditos:stop()
+    Assets.audio.musicaGameOver:stop()
     cenarioAtual = "fundo"
     transicaoCenario = nil
     portal = nil
@@ -90,10 +121,24 @@ local function reiniciarJogo()
     coracao = nil
     timerSpawnCoracao = 30
 
-    powerup = nil
+    powerups = {}
     timerSpawnPowerup = 35
     timerTiroRapidoAtivo = 0
     timerEscudoAtivo = 0
+    powerupsNovosLiberados = false
+    timerPowerupTeleguiado = nil
+    timerPowerupTiroPotente = nil
+end
+
+local function criarPowerup(tipo, larguraTela, alturaTela, x, y)
+    table.insert(powerups, {
+        tipo = tipo,
+        x = x or love.math.random(80, larguraTela - 80),
+        y = y or love.math.random(80, alturaTela - 80),
+        tamanho = tipo.tamanho,
+        -- Tempo que um power-up permanece disponível antes de desaparecer.
+        tempoRestante = 5
+    })
 end
 
 local function atualizarItens(dt, larguraTela, alturaTela)
@@ -108,6 +153,7 @@ local function atualizarItens(dt, larguraTela, alturaTela)
             x = love.math.random(80, larguraTela - 80),
             y = love.math.random(80, alturaTela - 80),
             tamanho = 36,
+            -- Tempo que o coração permanece disponível.
             tempoRestante = 5
         }
     end
@@ -140,24 +186,40 @@ local function atualizarItens(dt, larguraTela, alturaTela)
     if timerSpawnPowerup <= 0 then
         timerSpawnPowerup = 35
 
-        local tipoSorteado = tiposPowerup[
-            love.math.random(1, #tiposPowerup)
-        ]
-
-        powerup = {
-            tipo = tipoSorteado,
-            x = love.math.random(80, larguraTela - 80),
-            y = love.math.random(80, alturaTela - 80),
-            tamanho = tipoSorteado.tamanho,
-            tempoRestante = 5
-        }
+        criarPowerup(
+            tiposPowerup[love.math.random(1, 2)],
+            larguraTela,
+            alturaTela
+        )
     end
 
-    if powerup then
+    if chefes.boss2Derrotado and not powerupsNovosLiberados then
+        powerupsNovosLiberados = true
+        -- Novos poderes: primeiro atraso e fase do segundo tipo (15 s depois).
+        timerPowerupTeleguiado = 15
+        timerPowerupTiroPotente = 30
+    end
+
+    if powerupsNovosLiberados then
+        timerPowerupTeleguiado = timerPowerupTeleguiado - dt
+        timerPowerupTiroPotente = timerPowerupTiroPotente - dt
+
+        if timerPowerupTeleguiado <= 0 then
+            criarPowerup(tiposPowerup[3], larguraTela, alturaTela)
+            timerPowerupTeleguiado = 35
+        end
+        if timerPowerupTiroPotente <= 0 then
+            criarPowerup(tiposPowerup[4], larguraTela, alturaTela)
+            timerPowerupTiroPotente = 35
+        end
+    end
+
+    for indice = #powerups, 1, -1 do
+        local powerup = powerups[indice]
         powerup.tempoRestante = powerup.tempoRestante - dt
 
         if powerup.tempoRestante <= 0 then
-            powerup = nil
+            table.remove(powerups, indice)
         elseif colisaoCirculo(
             jogador.x,
             jogador.y,
@@ -167,7 +229,7 @@ local function atualizarItens(dt, larguraTela, alturaTela)
             powerup.tamanho / 2
         ) then
             powerup.tipo.aoColetar()
-            powerup = nil
+            table.remove(powerups, indice)
         end
     end
 end
@@ -186,7 +248,7 @@ local function desenharItens()
         drawItem(Assets.images.coracao,coracao.x,coracao.y,
             coracao.tamanho*pulso,alpha)
     end
-    if powerup then
+    for _, powerup in ipairs(powerups) do
         local pulso=1+math.sin(love.timer.getTime()*8)*0.12
         local alpha=powerup.tempoRestante<=1.5
             and math.floor(powerup.tempoRestante*8)%2==0 and 0.25 or 1
@@ -222,19 +284,41 @@ function love.load()
         {
             id = "tiro_rapido",
             imagem = Assets.images.powerupTiroRapido,
+            -- Tamanho do item e duração do efeito do tiro rápido.
             tamanho = 36,
             escala = 36 / Assets.images.powerupTiroRapido:getWidth(),
             aoColetar = function()
+                -- Duração do efeito de tiro rápido.
                 timerTiroRapidoAtivo = 10
             end
         },
         {
             id = "escudo",
             imagem = Assets.images.powerupEscudo,
+            -- Tamanho do item e duração do escudo.
             tamanho = 36,
             escala = 36 / Assets.images.powerupEscudo:getWidth(),
             aoColetar = function()
+                -- Duração do efeito de escudo.
                 timerEscudoAtivo = 10
+            end
+        },
+        {
+            id = "teleguiado",
+            imagem = Assets.images.powerupTeleguiado,
+            -- Tamanho de exibição do item teleguiado.
+            tamanho = 42,
+            aoColetar = function()
+                Enemies.activateGuidedPower(inimigos)
+            end
+        },
+        {
+            id = "tiro_potente",
+            imagem = Assets.images.powerupTiroPotente,
+            -- Tamanho de exibição do item; o dano/tamanho do tiro fica em player.lua.
+            tamanho = 42,
+            aoColetar = function()
+                jogador.tiroPotenteAtivo = true
             end
         }
     }
@@ -248,6 +332,8 @@ aplicarVolume = function()
     Assets.audio.musicaMenu:setVolume(volumeSom)
     Assets.audio.musicaBatalha:setVolume(volumeSom)
     Assets.audio.musicaBoss2:setVolume(volumeSom)
+    Assets.audio.musicaCreditos:setVolume(volumeSom)
+    Assets.audio.musicaGameOver:setVolume(volumeSom)
 end
 
 local function abrirConfiguracoes(origem)
@@ -341,34 +427,65 @@ local function resetarCombateParaDebug()
     portal = nil
     itemDuelo = nil
     coracao = nil
-    powerup = nil
+    powerups = {}
     timerPortal = 60
     timerItemDuelo = 5
     chefeSecretoDerrotado = false
     transicaoCenario = nil
+    powerupsNovosLiberados = false
+    timerPowerupTeleguiado = nil
+    timerPowerupTiroPotente = nil
 end
 
 local function executarAcaoDebug(acao)
     local larguraTela = love.graphics.getWidth()
     local alturaTela = love.graphics.getHeight()
+    local tiposBoss = {
+        boss1 = 1,
+        boss2 = 2,
+        boss3 = 3,
+        boss4 = 4,
+        bossFinal = 5
+    }
+    local tipoBoss = tiposBoss[acao]
 
-    if acao == "boss1" then
+    if tipoBoss then
         resetarCombateParaDebug()
-        cenarioAtual = "fundo"
-        Bosses.debugSpawn(chefes, 1, larguraTela, Assets.audio)
+        cenarioAtual = tipoBoss == 1 and "fundo"
+            or tipoBoss == 2 and "cena2"
+            or tipoBoss == 3 and "cena3"
+            or "cena4"
+        Bosses.debugSpawn(chefes, tipoBoss, larguraTela, Assets.audio)
 
-    elseif acao == "boss2" then
-        resetarCombateParaDebug()
-        cenarioAtual = "cena2"
-        Bosses.debugSpawn(chefes, 2, larguraTela, Assets.audio)
+    elseif acao == "inimigo1" or acao == "inimigo2"
+    or acao == "inimigo3" or acao == "inimigo4" then
+        local tipoInimigo = tonumber(string.sub(acao, -1))
+        Enemies.debugSpawn(inimigos, tipoInimigo, larguraTela, alturaTela)
+
+    elseif acao == "tiroRapido" then
+        timerTiroRapidoAtivo = 10
+
+    elseif acao == "escudo" then
+        timerEscudoAtivo = 10
+
+    elseif acao == "teleguiado" then
+        Enemies.activateGuidedPower(inimigos)
+
+    elseif acao == "tiroPotente" then
+        jogador.tiroPotenteAtivo = true
+
+    elseif acao == "creditos" then
+        iniciarCreditos("vitoria")
 
     elseif acao == "portal" then
         resetarCombateParaDebug()
-        cenarioAtual = "cena2"
+        cenarioAtual = "cena3"
         chefes.boss1JaApareceu = true
         chefes.boss1Derrotado = true
         chefes.boss2JaApareceu = true
         chefes.boss2Derrotado = true
+        chefes.bossesDerrotados = 2
+        chefes.timerSpawnBoss2 = 25
         portal = {
             x = love.math.random(80, larguraTela - 80),
             y = love.math.random(80, alturaTela - 80),
@@ -384,6 +501,8 @@ local function executarAcaoDebug(acao)
         chefes.boss1Derrotado = true
         chefes.boss2JaApareceu = true
         chefes.boss2Derrotado = true
+        chefes.bossesDerrotados = 2
+        chefes.timerSpawnBoss2 = 25
         SecretBoss.start(
             chefeSecreto,
             jogador,
@@ -391,11 +510,12 @@ local function executarAcaoDebug(acao)
             alturaTela,
             Assets.audio
         )
-        cenarioAtual = "cena2"
+        cenarioAtual = "cena3"
         iniciarTransicaoCenario("cenaEspecial")
 
     elseif acao == "tempo" then
-        if chefes.boss1Derrotado and not chefes.boss2JaApareceu then
+        if chefes.bossesDerrotados > 0 and chefes.bossesDerrotados < 5
+        and not Bosses.isActive(chefes) then
             chefes.timerSpawnBoss2 = 0
         else
             tempoPartida = tempoPartida + 30
@@ -405,11 +525,13 @@ local function executarAcaoDebug(acao)
         jogador.vidas = 3
         jogador.tempoInvulneravel = 0
     end
+
 end
 
 local function atualizarPortal(dt,w,h)
     if not chefes.boss2Derrotado or chefeSecretoDerrotado
-    or SecretBoss.isActive(chefeSecreto) then return end
+    or SecretBoss.isActive(chefeSecreto)
+    or Bosses.isActive(chefes) then return end
     if portal then
         portal.tempoRestante=portal.tempoRestante-dt
         if portal.tempoRestante<=0 then
@@ -418,7 +540,7 @@ local function atualizarPortal(dt,w,h)
             portal.x,portal.y,portal.tamanho/2) then
             portal=nil
             coracao=nil
-            powerup=nil
+            powerups={}
             itemDuelo=nil
             timerItemDuelo=5
             Enemies.reset(inimigos)
@@ -473,17 +595,53 @@ local function atualizarItemDuelo(dt,w,h)
         return
     end
     local boss=chefeSecreto.boss
-    if boss and colisaoCirculo(boss.x,boss.y,boss.tamanho/2.2,
+    if boss and boss.visivel
+    and (boss.fase=="ataque" or boss.fase=="pausa")
+    and colisaoCirculo(boss.x,boss.y,boss.tamanho/2.2,
         itemDuelo.x,itemDuelo.y,itemDuelo.tamanho/2) then
         SecretBoss.collectItem(chefeSecreto,itemDuelo.tipo)
         itemDuelo=nil
     end
 end
 
+local function atualizarMisseisTeleguiados(dt,w,h,dueloSecretoAtivo)
+    local alvosBoss = {}
+
+    if dueloSecretoAtivo then
+        local boss = chefeSecreto.boss
+        if boss.visivel
+        and (boss.fase == "ataque" or boss.fase == "pausa")
+        and boss.timerEscudo <= 0 then
+            table.insert(alvosBoss, boss)
+        end
+    elseif chefes.boss and not chefes.bossEntrando then
+        local boss = chefes.boss
+        local vulneravel = (boss.tipo ~= 2 and boss.tipo ~= 4)
+            or boss.timerVulneravel > 0
+        if vulneravel then
+            table.insert(alvosBoss, boss)
+        end
+    end
+
+    pontos = pontos + Enemies.updateGuidedMissiles(
+        inimigos,
+        dt,
+        jogador,
+        w,
+        h,
+        Bosses.isActive(chefes) or dueloSecretoAtivo,
+        alvosBoss
+    )
+end
+
 function love.update(dt)
     local w=love.graphics.getWidth()
     local h=love.graphics.getHeight()
     UI.update(interface,dt,w,estado)
+    if estado=="creditos" then
+        tempoCreditos = tempoCreditos + dt
+        return
+    end
     if estado~="jogando" then return end
     if menuDebugAberto then return end
 
@@ -497,39 +655,62 @@ function love.update(dt)
     tempoPartida=tempoPartida+dt
     timerTiroRapidoAtivo=math.max(0,timerTiroRapidoAtivo-dt)
     timerEscudoAtivo=math.max(0,timerEscudoAtivo-dt)
+    local vidasAntes = jogador.vidas
+    local dueloSecretoAtivo=SecretBoss.isActive(chefeSecreto)
     Player.update(jogador,dt,w,h,timerTiroRapidoAtivo>0)
     Bosses.update(chefes,dt,jogador,tempoPartida,w,h,
-        Assets.audio,timerEscudoAtivo>0)
+        Assets.audio,timerEscudoAtivo>0,dueloSecretoAtivo)
     atualizarPortal(dt,w,h)
 
-    local dueloSecretoAtivo=SecretBoss.isActive(chefeSecreto)
     pontos=pontos+Enemies.update(inimigos,dt,jogador,tempoPartida,w,h,
         Bosses.isActive(chefes) or dueloSecretoAtivo,
-        chefes.boss1Derrotado,timerEscudoAtivo>0)
+        chefes.boss1Derrotado,timerEscudoAtivo>0,
+        chefes.bossesDerrotados)
+    if jogador.vidas < vidasAntes then
+        jogador.tiroPotenteAtivo = false
+    end
     atualizarItens(dt,w,h)
 
     if dueloSecretoAtivo then
         SecretBoss.update(chefeSecreto,dt,jogador,w,h,
             timerEscudoAtivo>0,itemDuelo)
         atualizarItemDuelo(dt,w,h)
+        atualizarMisseisTeleguiados(dt,w,h,dueloSecretoAtivo)
         if SecretBoss.handlePlayerBullets(chefeSecreto,jogador,Assets.audio) then
             itemDuelo=nil
             chefeSecretoDerrotado=true
-            iniciarTransicaoCenario("cena2")
+            local cenaRetorno = chefes.bossesDerrotados >= 3
+                and "cena4" or "cena3"
+            iniciarTransicaoCenario(cenaRetorno)
         end
     else
-        local boss1Antes=chefes.boss1Derrotado
+        atualizarMisseisTeleguiados(dt,w,h,false)
+        local chefesDerrotadosAntes = chefes.bossesDerrotados
         pontos=pontos+Bosses.handlePlayerBullets(chefes,jogador,Assets.audio)
-        if not boss1Antes and chefes.boss1Derrotado then
-            iniciarTransicaoCenario("cena2")
+        if chefes.bossesDerrotados > chefesDerrotadosAntes then
+            local cenasProximoEstagio = {
+                [1] = "cena2",
+                [2] = "cena3",
+                [3] = "cena4",
+                [4] = "cena4"
+            }
+            if chefes.bossesDerrotados == 5 then
+                resultadoFinal = "vitoria"
+            else
+                iniciarTransicaoCenario(
+                    cenasProximoEstagio[chefes.bossesDerrotados]
+                )
+            end
         end
     end
     if not dueloSecretoAtivo then
         pontos=pontos+Enemies.handlePlayerBullets(inimigos,jogador)
     end
     if jogador.vidas<=0 then
-        estado="gameover"
-        pararMusicasDeJogo()
+        iniciarGameOver()
+    elseif resultadoFinal=="vitoria" and chefes.bossesDerrotados==5
+    and not dueloSecretoAtivo then
+        iniciarCreditos("vitoria")
     end
 end
 
@@ -554,7 +735,9 @@ function love.draw()
         UI.drawHUD({
             player=jogador,bosses=chefeParaHUD,pontos=pontos,
             tempoPartida=tempoPartida,timerTiroRapido=timerTiroRapidoAtivo,
-            timerEscudo=timerEscudoAtivo
+            timerEscudo=timerEscudoAtivo,
+            timerTeleguiado=inimigos.timerPoderTeleguiado,
+            tiroPotente=jogador.tiroPotenteAtivo
         },Assets,w,h)
         if estado=="pausado" then
             UI.drawPauseMenu(interface,w,h)
@@ -566,7 +749,11 @@ function love.draw()
             UI.drawDebugMenu(interface,w,h)
         end
     elseif estado=="gameover" then
-        UI.drawGameOver(pontos,tempoPartida,w,h)
+        UI.drawGameOver(interface,pontos,tempoPartida,w,h)
+    elseif estado=="vitoria" then
+        UI.drawVictory(pontos,tempoPartida,w,h)
+    elseif estado=="creditos" then
+        UI.drawCredits(tempoCreditos,resultadoFinal,w,h)
     end
 end
 
@@ -668,10 +855,18 @@ function love.keypressed(tecla)
             voltarDasConfiguracoes()
         elseif estado == "instrucoes" then
             estado = "menu"
+        elseif estado == "vitoria" then
+            voltarAoMenuPrincipal()
         elseif estado == "gameover" then
             voltarAoMenuPrincipal()
+        elseif estado == "creditos" then
+            voltarAoMenuPrincipal()
         end
-    elseif tecla == "r" and estado == "gameover" then
+    elseif (tecla == "return" or tecla == "kpenter")
+    and estado == "creditos" and tempoCreditos >= 18 then
+        voltarAoMenuPrincipal()
+    elseif tecla == "r"
+    and (estado == "gameover" or estado == "vitoria" or estado == "creditos") then
         reiniciarJogo()
     end
 end

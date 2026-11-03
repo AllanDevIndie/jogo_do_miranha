@@ -9,17 +9,26 @@ function Assets.load()
         tiroJogador = "image/power.png",
         inimigo = "image/enemy.png",
         inimigo2 = "image/enemy2.png",
+        inimigo3 = "image/enemy3.png",
+        inimigo4 = "image/enemy4.png",
         boss = "image/boss.png",
         boss2 = "image/cthulhu.png",
+        boss3 = "image/boss_3.png",
+        boss4 = "image/boss_4.png",
+        finalBoss = "image/final_boss.png",
         tiroInimigo = "image/enemyPower.png",
         fundo = "image/cenary.jpg",
         cena2 = "image/cena2.jpg",
+        cena3 = "image/cena3.jpg",
+        cena4 = "image/cena4.jpg",
         cenaEspecial = "image/cena_especial.jpg",
         portal = "image/portal.png",
         bossSecreto = "image/superhero_shield.png",
         coracao = "image/heart.png",
         powerupTiroRapido = "image/powerup.png",
-        powerupEscudo = "image/powerup_shield.png"
+        powerupEscudo = "image/powerup_shield.png",
+        powerupTeleguiado = "image/powerup_2.png",
+        powerupTiroPotente = "image/powerup_3.png"
     }
 
     for nome, caminho in pairs(imagePaths) do
@@ -45,6 +54,15 @@ function Assets.load()
         love.audio.newSource("songs/Orbital Colossus.mp3", "stream")
     Assets.audio.musicaBoss2:setLooping(true)
     Assets.audio.musicaBoss2:setVolume(0.5)
+
+    Assets.audio.musicaCreditos =
+        love.audio.newSource("songs/Sunflower  8 Bit Universe.mp3", "stream")
+    Assets.audio.musicaCreditos:setVolume(0.5)
+
+    Assets.audio.musicaGameOver =
+        love.audio.newSource("songs/game over.mp3", "stream")
+    Assets.audio.musicaGameOver:setLooping(true)
+    Assets.audio.musicaGameOver:setVolume(0.5)
 end
 
 return Assets

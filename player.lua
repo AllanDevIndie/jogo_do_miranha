@@ -2,21 +2,26 @@ local Player = {}
 
 function Player.new(assets, larguraTela, alturaTela)
     local imagem = assets.images.jogador
+    -- Tamanho visual e área aproximada de colisão do jogador.
     local tamanho = 64
 
     return {
         x = larguraTela / 2,
         y = alturaTela / 2,
+        -- Velocidade de movimento em pixels por segundo.
         velocidade = 250,
         tamanho = tamanho,
+        -- Vidas iniciais da partida.
         vidas = 3,
         tempoInvulneravel = 0,
+        tiroPotenteAtivo = false,
 
         imagem = imagem,
         escala = tamanho / imagem:getWidth(),
 
         tiros = {},
         timerTiro = 0,
+        -- Intervalo base entre disparos, em segundos.
         intervaloTiro = 0.4
     }
 end
@@ -26,6 +31,7 @@ function Player.reset(player, larguraTela, alturaTela)
     player.y = alturaTela / 2
     player.vidas = 3
     player.tempoInvulneravel = 0
+    player.tiroPotenteAtivo = false
     player.timerTiro = 0
     player.tiros = {}
 end
@@ -69,6 +75,7 @@ function Player.update(player, dt, larguraTela, alturaTela, tiroRapidoAtivo)
     -- Intervalo e velocidade dos tiros
     player.timerTiro = player.timerTiro - dt
 
+    -- Cadência de tiro com uma vida e valores dos disparos rápidos.
     local intervaloBase = player.vidas == 1
         and 0.3
         or player.intervaloTiro
@@ -76,6 +83,7 @@ function Player.update(player, dt, larguraTela, alturaTela, tiroRapidoAtivo)
         and intervaloBase / 2
         or intervaloBase
 
+    -- Ajuste a velocidade do projétil normal e do power-up de tiro rápido.
     local velocidadeTiro = tiroRapidoAtivo and 750 or 500
 
     -- Segurar o botão esquerdo do mouse dispara continuamente
@@ -92,7 +100,9 @@ function Player.update(player, dt, larguraTela, alturaTela, tiroRapidoAtivo)
             dy = math.sin(angulo),
             angulo = angulo,
             velocidade = velocidadeTiro,
-            tamanho = 32
+            -- Tamanho e dano do tiro normal ou do power-up de tiro 4x.
+            tamanho = player.tiroPotenteAtivo and 40 or 32,
+            dano = player.tiroPotenteAtivo and 4 or 1
         })
     end
 
@@ -114,11 +124,11 @@ function Player.draw(player, assets, timerTiroRapido, timerEscudo)
     local imagemTiro = assets.images.tiroJogador
     local centroTiroX = imagemTiro:getWidth() / 2
     local centroTiroY = imagemTiro:getHeight() / 2
-    local escalaTiro = 32 / imagemTiro:getWidth()
 
     love.graphics.setColor(1, 1, 1, 1)
 
     for _, tiro in ipairs(player.tiros) do
+        local escalaTiro = (tiro.tamanho or 32) / imagemTiro:getWidth()
         love.graphics.draw(
             imagemTiro,
             tiro.x,
