@@ -1,4 +1,10 @@
 local Bosses = {}
+Bosses.INTERVALO_ENTRE_CHEFOES = 75
+local DIRECOES_TIRO_CTHULHU = {
+    -math.pi / 2,
+    math.pi / 4,
+    3 * math.pi / 4
+}
 
 local function colisaoCirculo(x1, y1, raio1, x2, y2, raio2)
     local dx = x1 - x2
@@ -107,15 +113,15 @@ local function criarBoss(bosses, tipo, larguraTela)
     -- Ajuste por boss: vida, tamanho, velocidade de movimento e intervalo dos tiros.
     local configuracoes = {
         -- Boss 1
-        { nome = "Chefão", tamanho = 96, vida = 30, velocidade = 145, intervalo = 1.8 },
+        { nome = "Chefão", tamanho = 96, vida = 50, velocidade = 145, intervalo = 1.8 },
         -- Boss 2
-        { nome = "CTHULHU", tamanho = 110, vida = 52, velocidade = 125, intervalo = 4.5 },
+        { nome = "CTHULHU", tamanho = 110, vida = 72, velocidade = 125, intervalo = 4.5 },
         -- Boss 3
-        { nome = "BOSS 3", tamanho = 112, vida = 48, velocidade = 155, intervalo = 3.2 },
+        { nome = "BOSS 3", tamanho = 112, vida = 80, velocidade = 155, intervalo = 3.2 },
         -- Boss 4
-        { nome = "BOSS 4", tamanho = 120, vida = 60, velocidade = 115, intervalo = 3.8 },
+        { nome = "BOSS 4", tamanho = 120, vida = 90, velocidade = 115, intervalo = 3.8 },
         -- Boss final
-        { nome = "CHEFE FINAL", tamanho = 136, vida = 150, velocidade = 240, intervalo = 1.5 }
+        { nome = "CHEFE FINAL", tamanho = 136, vida = 200, velocidade = 240, intervalo = 1.5 }
     }
     local configuracao = configuracoes[tipo]
 
@@ -378,10 +384,15 @@ function Bosses.update(
 
                 -- Quantidade de projéteis, abertura do leque e velocidade do tiro.
                 for indice = 1, quantidade do
-                    local deslocamento = quantidade == 1 and 0
-                        or (indice - (quantidade + 1) / 2)
-                            * abertura / (quantidade - 1)
-                    local anguloTiro = angulo + deslocamento
+                    local anguloTiro
+                    if boss.tipo == 2 then
+                        anguloTiro = DIRECOES_TIRO_CTHULHU[indice]
+                    else
+                        local deslocamento = quantidade == 1 and 0
+                            or (indice - (quantidade + 1) / 2)
+                                * abertura / (quantidade - 1)
+                        anguloTiro = angulo + deslocamento
+                    end
                     local velocidadeTiro = boss.tipo == 5 and 210 or 190
 
                     table.insert(bosses.tirosInimigos, {
@@ -490,7 +501,7 @@ function Bosses.handlePlayerBullets(bosses, player, audio)
                         pontosGanhos = pontosGanhos + boss.tipo * 300
                         bosses.bossesDerrotados = boss.tipo
                         bosses.ultimoDerrotado = boss.tipo
-                        bosses.timerSpawnBoss2 = 25
+                        bosses.timerSpawnBoss2 = Bosses.INTERVALO_ENTRE_CHEFOES
 
                         if boss.tipo == 1 then
                             bosses.boss1Derrotado = true

@@ -21,9 +21,29 @@ function Player.new(assets, larguraTela, alturaTela)
 
         tiros = {},
         timerTiro = 0,
+        movimentoToqueX = 0,
+        movimentoToqueY = 0,
+        miraToqueX = 0,
+        miraToqueY = -1,
+        atirandoPorToque = false,
         -- Intervalo base entre disparos, em segundos.
         intervaloTiro = 0.4
     }
+end
+
+function Player.setTouchControls(
+    player,
+    movimentoX,
+    movimentoY,
+    miraX,
+    miraY,
+    atirando
+)
+    player.movimentoToqueX = movimentoX
+    player.movimentoToqueY = movimentoY
+    player.miraToqueX = miraX
+    player.miraToqueY = miraY
+    player.atirandoPorToque = atirando
 end
 
 function Player.reset(player, larguraTela, alturaTela)
@@ -34,6 +54,7 @@ function Player.reset(player, larguraTela, alturaTela)
     player.tiroPotenteAtivo = false
     player.timerTiro = 0
     player.tiros = {}
+    Player.setTouchControls(player, 0, 0, 0, -1, false)
 end
 
 function Player.update(player, dt, larguraTela, alturaTela, tiroRapidoAtivo)
@@ -53,6 +74,9 @@ function Player.update(player, dt, larguraTela, alturaTela, tiroRapidoAtivo)
     if love.keyboard.isDown("w", "up") then
         dy = dy - 1
     end
+
+    dx = dx + player.movimentoToqueX
+    dy = dy + player.movimentoToqueY
 
     -- Normaliza o vetor para manter a mesma velocidade na diagonal
     local comprimento = math.sqrt(dx * dx + dy * dy)
@@ -87,11 +111,20 @@ function Player.update(player, dt, larguraTela, alturaTela, tiroRapidoAtivo)
     local velocidadeTiro = tiroRapidoAtivo and 750 or 500
 
     -- Segurar o botão esquerdo do mouse dispara continuamente
-    if love.mouse.isDown(1) and player.timerTiro <= 0 then
+    if (love.mouse.isDown(1) or player.atirandoPorToque)
+    and player.timerTiro <= 0 then
         player.timerTiro = intervaloAtual
 
-        local mouseX, mouseY = love.mouse.getPosition()
-        local angulo = math.atan2(mouseY - player.y, mouseX - player.x)
+        local miraX, miraY
+        if player.atirandoPorToque then
+            miraX = player.miraToqueX
+            miraY = player.miraToqueY
+        else
+            local mouseX, mouseY = love.mouse.getPosition()
+            miraX = mouseX - player.x
+            miraY = mouseY - player.y
+        end
+        local angulo = math.atan2(miraY, miraX)
 
         table.insert(player.tiros, {
             x = player.x,

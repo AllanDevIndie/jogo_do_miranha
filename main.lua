@@ -47,6 +47,54 @@ local volumeSom = 0.5
 local resolucaoAtual = 1
 local origemConfiguracoes = "menu"
 local aplicarVolume
+local pontosToque = {}
+local idToqueMovimento
+local idToqueMira
+local plataformaToque = false
+
+local function atualizarControlesToque(larguraTela, alturaTela)
+    if not jogador then
+        return
+    end
+
+    local movimentoX, movimentoY = 0, 0
+    local miraX, miraY = 0, -1
+    local atirando = false
+    local raioJoystick = math.min(larguraTela, alturaTela) * 0.14
+
+    local toqueMovimento = pontosToque[idToqueMovimento]
+    if toqueMovimento then
+        local dx = toqueMovimento.x - toqueMovimento.origemX
+        local dy = toqueMovimento.y - toqueMovimento.origemY
+        local distancia = math.sqrt(dx * dx + dy * dy)
+        if distancia > 0 then
+            local intensidade = math.min(1, distancia / raioJoystick)
+            movimentoX = dx / distancia * intensidade
+            movimentoY = dy / distancia * intensidade
+        end
+    end
+
+    local toqueMira = pontosToque[idToqueMira]
+    if toqueMira then
+        local dx = toqueMira.x - toqueMira.origemX
+        local dy = toqueMira.y - toqueMira.origemY
+        local distancia = math.sqrt(dx * dx + dy * dy)
+        if distancia > 0 then
+            miraX = dx / distancia
+            miraY = dy / distancia
+        end
+        atirando = true
+    end
+
+    Player.setTouchControls(
+        jogador,
+        movimentoX,
+        movimentoY,
+        miraX,
+        miraY,
+        atirando
+    )
+end
 
 local function pararMusicasDeJogo(manter)
     for _, nome in ipairs({
@@ -270,6 +318,8 @@ end
 
 function love.load()
     Assets.load()
+    local sistema = love.system.getOS()
+    plataformaToque = sistema == "Android" or sistema == "iOS"
 
     local larguraTela = love.graphics.getWidth()
     local alturaTela = love.graphics.getHeight()
@@ -485,7 +535,7 @@ local function executarAcaoDebug(acao)
         chefes.boss2JaApareceu = true
         chefes.boss2Derrotado = true
         chefes.bossesDerrotados = 2
-        chefes.timerSpawnBoss2 = 25
+        chefes.timerSpawnBoss2 = Bosses.INTERVALO_ENTRE_CHEFOES
         portal = {
             x = love.math.random(80, larguraTela - 80),
             y = love.math.random(80, alturaTela - 80),
@@ -502,7 +552,7 @@ local function executarAcaoDebug(acao)
         chefes.boss2JaApareceu = true
         chefes.boss2Derrotado = true
         chefes.bossesDerrotados = 2
-        chefes.timerSpawnBoss2 = 25
+        chefes.timerSpawnBoss2 = Bosses.INTERVALO_ENTRE_CHEFOES
         SecretBoss.start(
             chefeSecreto,
             jogador,
@@ -721,7 +771,7 @@ function love.draw()
     if estado=="menu" then
         UI.drawMenu(interface,Assets,w,h)
     elseif estado=="instrucoes" then
-        UI.drawInstructions(interface,w,h)
+        UI.drawInstructions(interface,w,h,plataformaToque)
     elseif estado=="configuracoes" and origemConfiguracoes=="menu" then
         UI.drawSettingsMenu(interface,w,h,volumeSom,resolucaoAtual)
     elseif estado=="jogando" or estado=="pausado" or estado=="configuracoes" then
@@ -747,6 +797,80 @@ function love.draw()
 
         if menuDebugAberto then
             UI.drawDebugMenu(interface,w,h)
+        end
+        if plataformaToque and estado == "jogando" then
+            local raioJoystick = math.min(w, h) * 0.14
+            local toqueMovimento = pontosToque[idToqueMovimento]
+            local toqueMira = pontosToque[idToqueMira]
+            local baseMovimentoX = toqueMovimento
+                and toqueMovimento.origemX or w * 0.14
+            local baseMovimentoY = toqueMovimento
+                and toqueMovimento.origemY or h * 0.82
+            local baseMiraX = toqueMira
+                and toqueMira.origemX or w * 0.86
+            local baseMiraY = toqueMira
+                and toqueMira.origemY or h * 0.82
+
+            love.graphics.setColor(1, 1, 1, 0.35)
+            love.graphics.circle(
+                "line",
+                baseMovimentoX,
+                baseMovimentoY,
+                raioJoystick
+            )
+            love.graphics.circle(
+                "line",
+                baseMiraX,
+                baseMiraY,
+                raioJoystick
+            )
+
+            love.graphics.setColor(1, 1, 1, 0.55)
+            if toqueMovimento then
+                love.graphics.circle(
+                    "fill",
+                    toqueMovimento.x,
+                    toqueMovimento.y,
+                    h * 0.035
+                )
+            else
+                love.graphics.circle(
+                    "fill",
+                    baseMovimentoX,
+                    baseMovimentoY,
+                    h * 0.035
+                )
+            end
+
+            if toqueMira then
+                love.graphics.circle(
+                    "fill",
+                    toqueMira.x,
+                    toqueMira.y,
+                    h * 0.035
+                )
+            else
+                love.graphics.circle(
+                    "fill",
+                    baseMiraX,
+                    baseMiraY,
+                    h * 0.035
+                )
+            end
+
+            love.graphics.setColor(1, 1, 1, 0.7)
+            love.graphics.printf("MOVER", 0, h * 0.92, w * 0.28, "center")
+            love.graphics.printf(
+                "MIRAR / ATIRAR",
+                w * 0.72,
+                h * 0.92,
+                w * 0.28,
+                "center"
+            )
+            love.graphics.setColor(1, 1, 1, 0.8)
+            love.graphics.rectangle("fill", w - 66, 14, 52, 40, 8, 8)
+            love.graphics.setColor(0, 0, 0, 1)
+            love.graphics.printf("II", w - 66, 22, 52, "center")
         end
     elseif estado=="gameover" then
         UI.drawGameOver(interface,pontos,tempoPartida,w,h)
@@ -825,6 +949,82 @@ function love.mousereleased(_, _, botao)
     if botao == 1 then
         interface.ajustandoVolume = false
     end
+end
+
+function love.touchpressed(id, x, y)
+    local larguraTela = love.graphics.getWidth()
+    local alturaTela = love.graphics.getHeight()
+    x = x * larguraTela
+    y = y * alturaTela
+
+    if menuDebugAberto or estado ~= "jogando" then
+        love.mousepressed(x, y, 1)
+        return
+    end
+
+    if x >= larguraTela - 76 and y <= 66 then
+        pausarJogo()
+        return
+    end
+
+    if x < larguraTela / 2 and not idToqueMovimento then
+        idToqueMovimento = id
+        pontosToque[id] = {
+            papel = "movimento",
+            origemX = x,
+            origemY = y,
+            x = x,
+            y = y
+        }
+    elseif x >= larguraTela / 2 and not idToqueMira then
+        idToqueMira = id
+        pontosToque[id] = {
+            papel = "mira",
+            origemX = x,
+            origemY = y,
+            x = x,
+            y = y
+        }
+    end
+
+    atualizarControlesToque(larguraTela, alturaTela)
+end
+
+function love.touchmoved(id, x, y)
+    local toque = pontosToque[id]
+    if not toque then
+        if estado == "configuracoes" and interface.ajustandoVolume then
+            love.mousemoved(x * love.graphics.getWidth())
+        end
+        return
+    end
+
+    toque.x = x * love.graphics.getWidth()
+    toque.y = y * love.graphics.getHeight()
+    atualizarControlesToque(
+        love.graphics.getWidth(),
+        love.graphics.getHeight()
+    )
+end
+
+function love.touchreleased(id, x, y)
+    local toque = pontosToque[id]
+    if not toque then
+        love.mousereleased(x, y, 1)
+        return
+    end
+
+    pontosToque[id] = nil
+    if idToqueMovimento == id then
+        idToqueMovimento = nil
+    elseif idToqueMira == id then
+        idToqueMira = nil
+    end
+
+    atualizarControlesToque(
+        love.graphics.getWidth(),
+        love.graphics.getHeight()
+    )
 end
 
 function love.resize(largura, altura)

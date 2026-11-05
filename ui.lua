@@ -368,7 +368,12 @@ function UI.drawMenu(ui, assets, larguraTela, alturaTela)
     desenharBotaoMenu(ui.botaoSair)
 end
 
-function UI.drawInstructions(ui, larguraTela, alturaTela)
+function UI.drawInstructions(
+    ui,
+    larguraTela,
+    alturaTela,
+    controlesToque
+)
     love.graphics.setColor(0, 0, 0, 0.82)
     love.graphics.rectangle("fill", 0, 0, larguraTela, alturaTela)
 
@@ -381,10 +386,12 @@ function UI.drawInstructions(ui, larguraTela, alturaTela)
         "center"
     )
 
-    local texto = [[
-Movimentação: WASD ou teclas de seta
-Mire com o mouse e segure o botão esquerdo para atirar.
-
+    local controles = controlesToque
+        and "Toque e arraste no lado esquerdo para mover.\n"
+            .. "Toque e arraste no lado direito para mirar e atirar.\n\n"
+        or "Movimentação: WASD ou teclas de seta\n"
+            .. "Mire com o mouse e segure o botão esquerdo para atirar.\n\n"
+    local texto = controles .. [[
 Derrote quatro tipos de inimigos e cinco chefes em sequência.
 Vença ao derrotar o chefe final. Colete corações para recuperar vidas.
 Tiro rápido e escudo duram alguns segundos.
